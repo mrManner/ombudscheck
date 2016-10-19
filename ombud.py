@@ -13,7 +13,5 @@ parser.add_argument("-p", "--password", required=True,
         help="Password of Scoutnet user")
 args = parser.parse_args()
 
-
 file = open(args.file, 'r')
 reader = csv.DictReader(file, delimiter=';')
-
