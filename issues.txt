@@ -1,0 +1,4 @@
+We store all records in memory between reading, parsing, and printing now. That
+seems stupid. 
+
+Memory usage is through the roof way out of line crazycrazy.
