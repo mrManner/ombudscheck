@@ -1,6 +1,7 @@
 #! python3
 
 import csv
+import time
 import sys
 import argparse
 import requests
@@ -11,40 +12,56 @@ def getgroup(p, s):
     if p['maingroup'] == 'Ja':
         # Get group from Scoutnet
         p['Representerar'] = scrape(p['Medlemsnummer'], s)
-        p['Bra gissning'] = True
+        p['Representerar: Bra gissning'] = 'Ja'
+        p['Anmält ombud för huvudkår'] = p['maingroup']
+        p['Anmält ombud för annan kår'] = p['othergroup']
+        p['Deltagaralternativ'] = p['participation']
         return p
     elif p['othergroup'] != '':
         p['Representerar'] = p['othergroup']
-        p['Bra gissning'] = True
+        p['Representerar: Bra gissning'] = 'Ja'
+        p['Anmält ombud för huvudkår'] = p['maingroup']
+        p['Anmält ombud för annan kår'] = p['othergroup']
+        p['Deltagaralternativ'] = p['participation']
         return p
     else:
         # This p has not indicated any group, so we guess
         # they represent their main group but mark them for reference
         p['Representerar'] = scrape(p['Medlemsnummer'], s)
-        p['Bra gissning'] = False
+        p['Representerar: Bra gissning'] = 'Nej'
+        p['Anmält ombud för huvudkår'] = p['maingroup']
+        p['Anmält ombud för annan kår'] = p['othergroup']
+        p['Deltagaralternativ'] = p['participation']
         return p
     pass
 
 
 def scrape(num, session):
     r = session.get('https://www.scoutnet.se/organisation/user/' + str(num))
-    soup = bs(r.content, 'html.parser')
-    # Get all groups for counting
-    grouplist = soup.find(class_="membership_list").ul.find_all(
-            class_="membershiplist_item")
-    if len(grouplist) > 1:
-        # The only way the primary group is marked is using this image
-        return soup.find("img", class_="primary").previous_element
+    if r.status_code != 200:
+        raise UserNotFoundError
     else:
-        # If there's only one group it doesn't count as primary...
-        return soup.find(class_="membershiplist_item").h4.content
+        time.sleep(.100)
+        soup = bs(r.content, 'html.parser')
+        # Get all groups for counting
+        grouplist = soup.find(class_="membership_list").ul.find_all(
+                "user_membership_group_")
+        if len(grouplist) > 1:
+            # The only way the primary group is marked is using this image
+            return soup.find("img", class_="primary").previous_element
+        else:
+            # If there's only one group it doesn't count as primary...
+            return soup.find(class_="membership_info").find('img').next_element
+
+
+class UserNotFoundError(Exception):
+    pass
 
 
 def scoutnet_login(user, password):
     # returns a Requests session with a Scoutnet login
     s = requests.Session()
     credentials = {'signin[username]': user, 'signin[password]': password}
-    print(credentials)
     r = s.post('https://www.scoutnet.se/login', data=credentials)
     if r.status_code == 200:
         return s
@@ -73,10 +90,36 @@ reader.fieldnames[23] = 'participation' # Do they represent anyone? If so:
 reader.fieldnames[24] = 'maingroup'     # Do they represent their main group...
 reader.fieldnames[25] = 'othergroup'    # ...or another?
 
-#print(reader.fieldnames)
-result = ([getgroup(p, session) for p in reader if 'Ombud' in p['participation']])
 
-reader.fieldnames.append('Bra gissning')
-reader.fieldnames.append('Representerar')
-writer = csv.DictWriter(sys.stdout, fieldnames = reader.fieldnames)
-writer.writerows(result)
+# Fix the fieldnames for writing
+fieldnames = []
+fieldnames.append('Medlemsnummer')
+fieldnames.append('Medlemsstatus')
+fieldnames.append('Namn')
+fieldnames.append('Kön')
+fieldnames.append('Födelsedatum')
+fieldnames.append('Personnummer')
+fieldnames.append('Organisation')
+fieldnames.append('Distrikt')
+fieldnames.append('Samverksansorganisation')
+fieldnames.append('Kår')
+fieldnames.append('E-post')
+fieldnames.append('Adress')
+fieldnames.append('Telefonnummer')
+fieldnames.append('Registrerad')
+fieldnames.append('Deltagaralternativ')
+fieldnames.append('Anmält ombud för huvudkår')
+fieldnames.append('Anmält ombud för annan kår')
+fieldnames.append('Ombudsgrupp')
+fieldnames.append('Stämmopatrull')
+fieldnames.append('Representerar')
+fieldnames.append('Representerar: Bra gissning')
+
+writer = csv.DictWriter(sys.stdout, fieldnames = fieldnames,
+        extrasaction = 'ignore', dialect='excel', delimiter=';', quotechar='"')
+
+
+writer.writeheader()
+for row in [getgroup(p, session) for p in reader if 'Ombud' in p['participation']]:
+    writer.writerow(row)
+
