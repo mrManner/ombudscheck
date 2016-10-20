@@ -1,19 +1,20 @@
 #! python3
 
 import csv
+import sys
 import argparse
 import requests
 from bs4 import BeautifulSoup as bs
 
 
 def getgroup(p, s):
-    if p['Huvudkar'] == 'Ja':
+    if p['maingroup'] == 'Ja':
         # Get group from Scoutnet
         p['Representerar'] = scrape(p['Medlemsnummer'], s)
         p['Bra gissning'] = True
         return p
-    elif p['Annankar'] != '':
-        p['Representerar'] = p['Annankar']
+    elif p['othergroup'] != '':
+        p['Representerar'] = p['othergroup']
         p['Bra gissning'] = True
         return p
     else:
@@ -36,7 +37,7 @@ def scrape(num, session):
         return soup.find("img", class_="primary").previous_element
     else:
         # If there's only one group it doesn't count as primary...
-        return soup.find(class_="membershiplist_item").h4.content 
+        return soup.find(class_="membershiplist_item").h4.content
 
 
 def scoutnet_login(user, password):
@@ -65,6 +66,17 @@ args = parser.parse_args()
 
 session = scoutnet_login(args.username, args.password)
 file = open(args.file, 'r')
-reader = csv.DictReader(file, delimiter=';')
+reader = csv.DictReader(file)
 
-print([getgroup(p, session) for p in reader if 'Ombud' in p['Deltagaralternativ']])
+# Fix up the reader a bit
+reader.fieldnames[23] = 'participation' # Do they represent anyone? If so:
+reader.fieldnames[24] = 'maingroup'     # Do they represent their main group...
+reader.fieldnames[25] = 'othergroup'    # ...or another?
+
+#print(reader.fieldnames)
+result = ([getgroup(p, session) for p in reader if 'Ombud' in p['participation']])
+
+reader.fieldnames.append('Bra gissning')
+reader.fieldnames.append('Representerar')
+writer = csv.DictWriter(sys.stdout, fieldnames = reader.fieldnames)
+writer.writerows(result)
