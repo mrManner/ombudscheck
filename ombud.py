@@ -41,18 +41,26 @@ def scrape(num, session):
     if r.status_code != 200:
         raise UserNotFoundError
     else:
-        time.sleep(.100)
+        time.sleep(.01)
         soup = bs(r.content, 'html.parser')
         # Get all groups for counting
-        grouplist = soup.find(class_="membership_list").ul.find_all(
-                "user_membership_group_")
+        grouplist = soup.find(class_="membership_list").ul.find_all(groupmember)
         if len(grouplist) > 1:
             # The only way the primary group is marked is using this image
-            return soup.find("img", class_="primary").previous_element
+            ret = soup.find("img", class_="primary").previous_element
+            soup.decompose()
+            return ret
         else:
             # If there's only one group it doesn't count as primary...
-            return soup.find(class_="membership_info").find('img').next_element
+            ret = soup.find(class_="membership_info").find('img').next_element
+            soup.decompose()
+            return ret
 
+def groupmember(tag):
+    if tag.has_attr('id'):
+        return 'user_membership_group' in tag['id']
+    else:
+        return False
 
 class UserNotFoundError(Exception):
     pass
