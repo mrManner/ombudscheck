@@ -1,6 +1,8 @@
 #! python3
 
 import csv
+import gc
+import objgraph
 import time
 import sys
 import argparse
@@ -41,19 +43,16 @@ def scrape(num, session):
     if r.status_code != 200:
         raise UserNotFoundError
     else:
-        time.sleep(.01)
         soup = bs(r.content, 'html.parser')
         # Get all groups for counting
         grouplist = soup.find(class_="membership_list").ul.find_all(groupmember)
         if len(grouplist) > 1:
             # The only way the primary group is marked is using this image
             ret = soup.find("img", class_="primary").previous_element
-            soup.decompose()
             return ret
         else:
             # If there's only one group it doesn't count as primary...
             ret = soup.find(class_="membership_info").find('img').next_element
-            soup.decompose()
             return ret
 
 def groupmember(tag):
@@ -128,6 +127,9 @@ writer = csv.DictWriter(sys.stdout, fieldnames = fieldnames,
 
 
 writer.writeheader()
-for row in [getgroup(p, session) for p in reader if 'Ombud' in p['participation']]:
-    writer.writerow(row)
+for p in reader:
+    if 'Ombud' in p['participation']:
+        writer.writerow(getgroup(p, session))
+    else:
+        pass
 
